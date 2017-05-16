@@ -329,9 +329,12 @@ void grep_test() {
     fprintf(stderr, "Reformatting Y and copying over contents of X ... \n");
     sprintf(buff, "umount %s", partY);
     system(buff);
-    sprintf(buff, "mkfs.ext4 -q %s -L Y", partY);
+    if (!strcmp(file_sys, "btrfs"))
+      sprintf(buff, "mkfs.btrfs -f %s -L Y", partY);
+    else
+      sprintf(buff, "mkfs.ext4 -q %s -L Y", partY);
     system(buff);
-    sprintf(buff, "mount -t ext4 %s /mnt/Y", partY);
+    sprintf(buff, "mount -t %s %s /mnt/Y", file_sys, partY);
     fail = system(buff);
     if (fail) {
       fprintf(stderr, "**** Failed to Mount %s ****", partY);
