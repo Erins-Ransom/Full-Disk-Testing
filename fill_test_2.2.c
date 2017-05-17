@@ -327,6 +327,7 @@ void grep_test() {
 
   if (copy) {
     fprintf(stderr, "Reformatting Y and copying over contents of X ... \n");
+    sync();
     sprintf(buff, "umount %s", partY);
     system(buff);
     if (!strcmp(file_sys, "btrfs"))
@@ -337,7 +338,7 @@ void grep_test() {
     sprintf(buff, "mount -t %s %s /mnt/Y", file_sys, partY);
     fail = system(buff);
     if (fail) {
-      fprintf(stderr, "**** Failed to Mount %s ****", partY);
+      fprintf(stderr, "**** Failed to Mount %s ****\n", partY);
       return;
     }
     system("cp -a /mnt/X/AAA /mnt/Y/AAA");
@@ -396,48 +397,49 @@ int main(int argc, char ** argv) {
 
   fprintf(stderr, "\n**** FILL TEST ****\n\nSettings:\nBranch Factor = %d\nDir Limit = %d\nFile Size Min = %d\nFile Size Max = %d\nFile System = %s\n\n", branch_factor, dir_lim, file_size_min, file_size_max, file_sys);
 
+  sync();
 
-  sprintf(buff, "umount %s &> /dev/null", partX);
-  do { fail = system(buff); } while (fail);
-  system("mkdir /mnt/X &> /dev/null");
+  sprintf(buff, "umount %s", partX);
+  fail = system(buff);
+  if (fail) { fprintf(stderr, "**** Failed to Unmount %s ****\n", partX); }
+
   if (!strcmp(file_sys, "btrfs"))
     sprintf(buff, "mkfs.btrfs -f %s -L X", partX);
   else
     sprintf(buff, "mkfs.ext4 -q %s -L X", partX);
   system(buff);
-  sprintf(buff, "mount -t %s %s /mnt/X", file_sys, partX);
+
+  sprintf(buff, "umount %s", partY);
   fail = system(buff);
+  if (fail) { fprintf(stderr, "**** Failed to Unmount %s ****\n", partY); }
 
-  if (fail) {
-    fprintf(stderr, "**** Failed to Mount dev/sda5 ****");
-    return 1;
-  }
-
-  sprintf(buff, "umount %s &> /dev/null", partY);
-  do { fail = system(buff); } while (fail);
-  system("mkdir /mnt/Y &> /dev/null");
   if (!strcmp(file_sys, "btrfs"))
-    sprintf(buff, "mkfs.btrfs -f %s -L Y &> /dev/null", partY);
+    sprintf(buff, "mkfs.btrfs -f %s -L Y", partY);
   else
     sprintf(buff, "mkfs.ext4 -q %s -L Y", partY);
-  system(buff);
-  sprintf(buff, "mount -t %s %s /mnt/Y", file_sys, partY);
-  fail = system(buff);
-
-  if (fail) {
-    fprintf(stderr, "**** Failed to Mount /dev/sda6 ****");
-    return 1;
-  }
-
-  sprintf(buff, "hdparm -t %s", partX);
-  system(buff);
-  system(buff);
   system(buff);
 
   sprintf(buff, "hdparm -t %s", partY);
   system(buff);
   system(buff);
   system(buff);
+
+  sprintf(buff, "hdparm -t %s", partX);
+  system(buff);
+  system(buff);
+  system(buff);
+
+  system("mkdir /mnt/X");
+  sprintf(buff, "mount -t %s %s /mnt/X", file_sys, partX);
+  fail = system(buff);
+
+  if (fail) { fprintf(stderr, "**** Failed to Mount %s ****\n", partX); return 1; } 
+
+  system("mkdir /mnt/Y");
+  sprintf(buff, "mount -t %s %s /mnt/Y", file_sys, partY);
+  fail = system(buff);
+
+  if (fail) { fprintf(stderr, "**** Failed to Mount %s ****\n", partY); return 1; }
 
 
   dir * root = make_dir("");
