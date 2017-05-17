@@ -396,18 +396,9 @@ int main(int argc, char ** argv) {
 
   fprintf(stderr, "\n**** FILL TEST ****\n\nSettings:\nBranch Factor = %d\nDir Limit = %d\nFile Size Min = %d\nFile Size Max = %d\nFile System = %s\n\n", branch_factor, dir_lim, file_size_min, file_size_max, file_sys);
 
-  sprintf(buff, "hdparm -t %s", partX);
-  system(buff);
-  system(buff);
-  system(buff);
 
-  sprintf(buff, "hdparm -t %s", partY);
-  system(buff);
-  system(buff);
-  system(buff);
-
-  sprintf(buff, "umount %s", partX);
-  system(buff);
+  sprintf(buff, "umount %s &> /dev/null", partX);
+  do { fail = system(buff); } while (fail);
   system("mkdir /mnt/X &> /dev/null");
   if (!strcmp(file_sys, "btrfs"))
     sprintf(buff, "mkfs.btrfs -f %s -L X", partX);
@@ -422,8 +413,8 @@ int main(int argc, char ** argv) {
     return 1;
   }
 
-  sprintf(buff, "umount %s", partY);
-  system(buff);
+  sprintf(buff, "umount %s &> /dev/null", partY);
+  do { fail = system(buff); } while (fail);
   system("mkdir /mnt/Y &> /dev/null");
   if (!strcmp(file_sys, "btrfs"))
     sprintf(buff, "mkfs.btrfs -f %s -L Y &> /dev/null", partY);
@@ -437,6 +428,17 @@ int main(int argc, char ** argv) {
     fprintf(stderr, "**** Failed to Mount /dev/sda6 ****");
     return 1;
   }
+
+  sprintf(buff, "hdparm -t %s", partX);
+  system(buff);
+  system(buff);
+  system(buff);
+
+  sprintf(buff, "hdparm -t %s", partY);
+  system(buff);
+  system(buff);
+  system(buff);
+
 
   dir * root = make_dir("");
 
