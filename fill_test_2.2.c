@@ -330,7 +330,7 @@ void grep_test() {
     sprintf(buff, "umount %s", partY);
     system(buff);
     if (!strcmp(file_sys, "btrfs"))
-      sprintf(buff, "mkfs.btrfs -f %s -L Y", partY);
+      sprintf(buff, "mkfs.btrfs -f %s -L Y &> /dev/null", partY);
     else
       sprintf(buff, "mkfs.ext4 -q %s -L Y", partY);
     system(buff);
@@ -426,7 +426,7 @@ int main(int argc, char ** argv) {
   system(buff);
   system("mkdir /mnt/Y &> /dev/null");
   if (!strcmp(file_sys, "btrfs"))
-    sprintf(buff, "mkfs.btrfs -f %s -L Y", partY);
+    sprintf(buff, "mkfs.btrfs -f %s -L Y &> /dev/null", partY);
   else
     sprintf(buff, "mkfs.ext4 -q %s -L Y", partY);
   system(buff);
