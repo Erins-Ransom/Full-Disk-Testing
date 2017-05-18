@@ -14,6 +14,7 @@ a partition that is at capacity versus one that has plenty of space.
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/mount.h>
 #include <fcntl.h>
 
 
@@ -198,7 +199,7 @@ void RandR(dir * root, int lim, int test) {
     file_count--;
   }
 
-  // write test, this is meant to measure write performance but is not currently working
+  // write test, this is meant to measure sequential write performance but is not currently working
   {
     int fd, ret;
     char * w_buff;
@@ -328,13 +329,15 @@ void grep_test() {
   if (copy) {
     fprintf(stderr, "Reformatting Y and copying over contents of X ... \n");
     sync();
-    sprintf(buff, "umount %s", partY);
-    system(buff);
+    fail = umount("/mnt/Y"); 
+    if (fail)  
+      fprintf(stderr, "Failed to unmount: %s\r", strerror(errno)); 
+    sync();
     if (!strcmp(file_sys, "btrfs"))
       sprintf(buff, "mkfs.btrfs -f %s -L Y &> /dev/null", partY);
     else
       sprintf(buff, "mkfs.ext4 -q %s -L Y", partY);
-    system(buff);
+    fail = system(buff);
     sprintf(buff, "mount -t %s %s /mnt/Y", file_sys, partY);
     fail = system(buff);
     if (fail) {
