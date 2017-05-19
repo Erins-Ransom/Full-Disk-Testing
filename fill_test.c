@@ -31,6 +31,7 @@ static int used[300000];
 static short int FULL;
 static short int copy;
 static short int write_test;
+static short int block_trace;
 static char * file_sys;
 static char * partX;
 static char * partY;
@@ -410,6 +411,7 @@ int main(int argc, char ** argv) {
     }
     if (!strcmp(argv[i], "-l")) { mem_lim = atoi(argv[++i]); }
     if (!strcmp(argv[i], "-btrfs")) { file_sys = "btrfs"; }
+    if (!strcmp(argv[i], "-bt")) { block_trace = 1; }
   }
 
   int fail = 0;
@@ -473,16 +475,20 @@ int main(int argc, char ** argv) {
   fprintf(stderr, "kB written:\t%d\t\tfiles created:\t%d\n", mem_count, file_count);
   
   grep_test();
-  layout_test(partX, "/mnt/X/AAA");
-  layout_test(partY, "/mnt/Y/AAA");
+  if (block_trace) {
+    layout_test(partX, "/mnt/X/AAA");
+    layout_test(partY, "/mnt/Y/AAA");
+  }
 
   for (i = 0; i < 800; i++) {
     if ((i+1)%100 == 0) {
       fprintf(stderr, "\nRemove and Refill round %d\nCurrent Volume: %d kB,  File Count: %d\n", ++i, mem_count, file_count);
       RandR(root, file_count/20, write_test);
       grep_test();
-      layout_test(partX, "/mnt/X/AAA");
-      layout_test(partY, "/mnt/Y/AAA");
+      if (block_trace) {
+        layout_test(partX, "/mnt/X/AAA");
+        layout_test(partY, "/mnt/Y/AAA");
+      }
     }
     RandR(root, file_count/20, 0);
   }

@@ -29,7 +29,7 @@ int main(int argc, char ** argv) {
 
   } while (ret1 && ret2 && sectors && request_lba1);
   
-  printf("\n4k blocks read:\t\t %d\n4k blosck read sequentially:\t %d\nLayout Score:\t\t %f\n", pages, pages - RAs, 1.0*(pages - RAs)/pages);
+  printf("\n4k blocks read:\t\t %d\n4k blocks read sequentially:\t %d\nLayout Score:\t\t %f\n", pages, pages - RAs, 1.0*(pages - RAs)/pages);
 
   return 0;
 
