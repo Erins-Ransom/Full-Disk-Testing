@@ -365,6 +365,23 @@ void grep_test() {
 }
 
 
+void layout_test(char * part, char * directory) {
+  char buff[100];
+
+  fprintf(stderr, "\n Determining layout on %s... ", part);
+
+  sync();
+  sprintf(buff, "blktrace -a read -d %s -o tracefile &", part);
+  system(buff);
+  sprintf(buff, "grep -r \" \" %s > /dev/null", directory);
+  system(buff);
+  system("kill $(pidof -s blktrace)");
+  sprintf(buff, "blkparse -a issue -f \"%%S %%n\\\\n\" -i tracefile | ./blk_interpreter");
+  system(buff);
+
+}
+
+
 // some settings are not modular yet
 
 int main(int argc, char ** argv) {
@@ -456,12 +473,16 @@ int main(int argc, char ** argv) {
   fprintf(stderr, "kB written:\t%d\t\tfiles created:\t%d\n", mem_count, file_count);
   
   grep_test();
+  layout_test(partX, "/mnt/X/AAA");
+  layout_test(partY, "/mnt/Y/AAA");
 
   for (i = 0; i < 800; i++) {
     if ((i+1)%100 == 0) {
       fprintf(stderr, "\nRemove and Refill round %d\nCurrent Volume: %d kB,  File Count: %d\n", ++i, mem_count, file_count);
       RandR(root, file_count/20, write_test);
       grep_test();
+      layout_test(partX, "/mnt/X/AAA");
+      layout_test(partY, "/mnt/Y/AAA");
     }
     RandR(root, file_count/20, 0);
   }
