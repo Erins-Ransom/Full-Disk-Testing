@@ -317,8 +317,8 @@ void RandR(dir * root, int lim, int test) {
   }
 
   i = 0;
-  label = rand()%5;
   if (add_big_file && big_file_count < 5) {
+    while (big_files[label]) { label = rand()%5; }
     make_file(path, 1000000 - label);
   }
   while (!FULL) {
