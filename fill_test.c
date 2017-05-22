@@ -27,7 +27,9 @@ static int file_count;
 static int dir_lim;
 static int file_size_max;
 static int file_size_min;
-static int used[300000];
+static int used[100000];
+static int big_files[5];
+static int big_file_count;
 static short int FULL;
 static short int copy;
 static short int write_test;
@@ -122,6 +124,7 @@ void make_file(char * path, int label) {
   if (errno != ENOSPC) {
 
     int size = rand()%(file_size_max + 1 - file_size_min) + file_size_min;
+    if (label > 100000) { size = 200000; }
 
     int i,j;
     buff[1000] = '\0';
@@ -132,13 +135,19 @@ void make_file(char * path, int label) {
     }
 
     mem_count += size;
-    used[label] = size;
-    file_count++;
+    if (label > 100000) {
+      big_files[1000000 - label] = 1;
+      big_file_count++;
+    } else {
+      used[label] = size;
+      file_count++;
+    }
 
   } else {
     FULL = 1;
   }
 
+  if (mem_count >= mem_lim) { FULL = 1; }
   if (fp1) { fclose(fp1); }
   if (fp2) { fclose(fp2); }
 
@@ -182,22 +191,32 @@ void make_random(dir * root, int label) {
 void RandR(dir * root, int lim, int test) {
 
   char buff[1000];
-  int * removed = malloc(lim*sizeof(int));
-  int i, label = rand()%file_count, error = 0;
-  for (i = 0; i < lim; i++) {
-    while (!used[label]) { label = rand()%file_count; }
-    sprintf(buff, "find /mnt/X -type f -name \"%d\" -exec rm -f {} \\;", label);
-    error = system(buff);
-    if (error) { fprintf(stderr, "\nERROR : %d  when trying to remove file %d \n", error, label); }
-    if (!copy) {
-      sprintf(buff, "find /mnt/Y -type f -name \"%d\" -exec rm -f {} \\;", label);
+  int i, label = rand()%5, error = 0, remove_big_file = !rand()%5, add_big_file = !rand()%5;
+
+  if (remove_big_file && big_files[label]) {
+    sprintf(buff, "find /mnt/X -type f -name \"%d\" -exec rm -f {} \\;", 1000000 - label);
+    system(buff);
+    sprintf(buff, "fine /mnt/X -type f -name \"%d\" -exec rm -f {} \\;", 1000000 - label);
+    system(buff);
+    big_file_count--;
+    big_files[label] = 0;
+    mem_count -= 200000;
+  } else {
+    label = rand()%file_count;
+    for (i = 0; i < lim; i++) {
+      while (!used[label]) { label = rand()%file_count; }
+      sprintf(buff, "find /mnt/X -type f -name \"%d\" -exec rm -f {} \\;", label);
       error = system(buff);
       if (error) { fprintf(stderr, "\nERROR : %d  when trying to remove file %d \n", error, label); }
+      if (!copy) {
+        sprintf(buff, "find /mnt/Y -type f -name \"%d\" -exec rm -f {} \\;", label);
+        error = system(buff);
+        if (error) { fprintf(stderr, "\nERROR : %d  when trying to remove file %d \n", error, label); }
+      }
+      mem_count -= used[label];
+      used[label] = 0;
+      file_count--;
     }
-    mem_count -= used[label];
-    used[label] = 0;
-    removed[i] = label;
-    file_count--;
   }
 
   // write test, this is meant to measure sequential write performance but is not currently working
@@ -297,12 +316,16 @@ void RandR(dir * root, int lim, int test) {
     }
   }
 
-  for (i = 0; i < lim; i++) {
-    make_file(path, removed[i]);
-    if (FULL) { break; }
+  i = 0;
+  label = rand()%5;
+  if (add_big_file && big_file_count < 5) {
+    make_file(path, 1000000 - label);
+  }
+  while (!FULL) {
+    while (used[i]) { i++; }
+    make_file(path, i);
   }
 
-  free(removed);
 }
 
 // function that performs timed greps on both directories
@@ -417,7 +440,7 @@ int main(int argc, char ** argv) {
   int fail = 0;
   char buff[1000];
 
-  fprintf(stderr, "\n**** FILL TEST ****\n\nSettings:\nBranch Factor = %d\nDir Limit = %d\nFile Size Min = %d\nFile Size Max = %d\nFile System = %s\n\n", branch_factor, dir_lim, file_size_min, file_size_max, file_sys);
+  fprintf(stderr, "\n**** FILL TEST ****\n\nSettings:\nBranch Factor = %d\nDir Limit = %d\nFile Size Min = %d\nFile Size Max = %d\nFile System = %s\nPartition X = %s\nPartition Y = %s\n\n", branch_factor, dir_lim, file_size_min, file_size_max, file_sys, partX, partY);
 
   sync();
 
@@ -470,7 +493,7 @@ int main(int argc, char ** argv) {
 
   fprintf(stderr, "\ncreating random directories and files ... \n");
 
-  while (!FULL && mem_count < mem_lim) { make_random(root, file_count); }
+  while (!FULL) { make_random(root, file_count); }
 
   fprintf(stderr, "kB written:\t%d\t\tfiles created:\t%d\n", mem_count, file_count);
   
@@ -480,7 +503,10 @@ int main(int argc, char ** argv) {
     layout_test(partY, "/mnt/Y/AAA");
   }
 
+  fprintf(stderr, "\nRemove and Refill progress: ");
   for (i = 0; i < 800; i++) {
+    fprintf(stderr, "|");
+    fflush(stderr);
     if ((i+1)%100 == 0) {
       fprintf(stderr, "\nRemove and Refill round %d\nCurrent Volume: %d kB,  File Count: %d\n", ++i, mem_count, file_count);
       RandR(root, file_count/20, write_test);
@@ -489,6 +515,7 @@ int main(int argc, char ** argv) {
         layout_test(partX, "/mnt/X/AAA");
         layout_test(partY, "/mnt/Y/AAA");
       }
+      fprintf(stderr, "\nRemove and Refill progress: ");
     }
     RandR(root, file_count/20, 0);
   }
