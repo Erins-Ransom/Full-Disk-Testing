@@ -24,6 +24,7 @@ static int dir_count;
 static int mem_count;
 static int mem_lim;
 static int file_count;
+static int big_file_count;
 static int dir_lim;
 static int big_file_size_max;
 static int file_size_max;
@@ -124,12 +125,12 @@ void make_file(char * path, int label, int big_file) {
   if (errno != ENOSPC) {
     int size;
 
-    do {
-      if (!big_file) 
-        size = rand()%(file_size_max + 1 - file_size_min) + file_size_min;
-      else
-        size = rand()%(big_file_size_max + 1 - file_size_max) + file_size_max;
-    } while (mem_count + size <= mem_lim);
+    if (!big_file) {
+      size = rand()%(file_size_max + 1 - file_size_min) + file_size_min;
+      big_file_count++;
+    } else { size = rand()%(big_file_size_max + 1 - file_size_max) + file_size_max; }
+
+    if (size + mem_count > mem_lim) { size = mem_lim - mem_count; }
 
     int i,j;
     buff[1000] = '\0';
@@ -489,7 +490,7 @@ int main(int argc, char ** argv) {
 
   while (!FULL) { make_random(root, file_count); }
 
-  fprintf(stderr, "kB written:\t%d\t\tfiles created:\t%d\n", mem_count, file_count);
+  fprintf(stderr, "kB written:\t%d\t\tfiles created:\t%d (%d big files)\n", mem_count, file_count, big_file_count);
   
   grep_test();
   if (block_trace) {
