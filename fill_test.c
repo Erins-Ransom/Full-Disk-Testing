@@ -127,8 +127,10 @@ void make_file(char * path, int label, int big_file) {
 
     if (!big_file) {
       size = rand()%(file_size_max + 1 - file_size_min) + file_size_min;
+    } else { 
+      size = rand()%(big_file_size_max + 1 - file_size_max) + file_size_max;
       big_file_count++;
-    } else { size = rand()%(big_file_size_max + 1 - file_size_max) + file_size_max; }
+    }
 
     if (size + mem_count > mem_lim) { size = mem_lim - mem_count; }
 
@@ -184,7 +186,7 @@ void make_random(dir * root, int label) {
   }
 
   if (big_files) {
-    big_file = !rand()%20;
+    big_file = !(rand()%100);
   }
 
   make_file(path, label, big_file);
@@ -314,7 +316,7 @@ void RandR(dir * root, int lim, int test) {
 
   i = 0;
   while (!FULL) {
-    if (big_files) { big_file = !rand()%20; }
+    if (big_files) { big_file = !(rand()%100); }
     while (used[i]) { i++; }
     make_file(path, i, big_file);
   }
