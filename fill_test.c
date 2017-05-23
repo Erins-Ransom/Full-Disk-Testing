@@ -25,15 +25,15 @@ static int mem_count;
 static int mem_lim;
 static int file_count;
 static int dir_lim;
+static int big_file_size_max;
 static int file_size_max;
 static int file_size_min;
 static int used[100000];
-static int big_files[5];
-static int big_file_count;
 static short int FULL;
 static short int copy;
 static short int write_test;
 static short int block_trace;
+static short int big_files;
 static char * file_sys;
 static char * partX;
 static char * partY;
@@ -100,7 +100,7 @@ void remove_dir(dir * root) {
 
 
 // function that generates a file full of random characters in the directory of the given node
-void make_file(char * path, int label) {
+void make_file(char * path, int label, int big_file) {
 
   FILE * fp1 = NULL, * fp2 = NULL;
 
@@ -122,9 +122,14 @@ void make_file(char * path, int label) {
   }
 
   if (errno != ENOSPC) {
+    int size;
 
-    int size = rand()%(file_size_max + 1 - file_size_min) + file_size_min;
-    if (label > 100000) { size = 200000; }
+    do {
+      if (!big_file) 
+        size = rand()%(file_size_max + 1 - file_size_min) + file_size_min;
+      else
+        size = rand()%(big_file_size_max + 1 - file_size_max) + file_size_max;
+    } while (mem_count + size <= mem_lim);
 
     int i,j;
     buff[1000] = '\0';
@@ -135,13 +140,8 @@ void make_file(char * path, int label) {
     }
 
     mem_count += size;
-    if (label > 100000) {
-      big_files[1000000 - label] = 1;
-      big_file_count++;
-    } else {
-      used[label] = size;
-      file_count++;
-    }
+    used[label] = size;
+    file_count++;
 
   } else {
     FULL = 1;
@@ -161,6 +161,7 @@ void make_random(dir * root, int label) {
   sprintf(path, "%s", root->name);
   int index = 4;
   int action = 0;
+  int big_file = 0;
   
   while (DIR) {
     if (dir_count < dir_lim && DIR->subdirs < branch_factor) {
@@ -181,7 +182,11 @@ void make_random(dir * root, int label) {
     index += 4;
   }
 
-  make_file(path, label);
+  if (big_files) {
+    big_file = !rand()%20;
+  }
+
+  make_file(path, label, big_file);
   DIR->files++;
 
 }
@@ -191,33 +196,23 @@ void make_random(dir * root, int label) {
 void RandR(dir * root, int lim, int test) {
 
   char buff[1000];
-  int i, label = rand()%5, error = 0, remove_big_file = !rand()%5, add_big_file = !rand()%5;
+  int i, label = rand()%file_count, error = 0, big_file = 0;
 
-  if (remove_big_file && big_files[label]) {
-    sprintf(buff, "find /mnt/X -type f -name \"%d\" -exec rm -f {} \\;", 1000000 - label);
-    system(buff);
-    sprintf(buff, "fine /mnt/X -type f -name \"%d\" -exec rm -f {} \\;", 1000000 - label);
-    system(buff);
-    big_file_count--;
-    big_files[label] = 0;
-    mem_count -= 200000;
-  } else {
-    label = rand()%file_count;
-    for (i = 0; i < lim; i++) {
-      while (!used[label]) { label = rand()%file_count; }
-      sprintf(buff, "find /mnt/X -type f -name \"%d\" -exec rm -f {} \\;", label);
+  while (mem_count > mem_lim - lim) {
+    while (!used[label]) { label = rand()%file_count; }
+    sprintf(buff, "find /mnt/X -type f -name \"%d\" -exec rm -f {} \\;", label);
+    error = system(buff);
+    if (error) { fprintf(stderr, "\nERROR : %d  when trying to remove file %d \n", error, label); }
+    if (!copy) {
+      sprintf(buff, "find /mnt/Y -type f -name \"%d\" -exec rm -f {} \\;", label);
       error = system(buff);
       if (error) { fprintf(stderr, "\nERROR : %d  when trying to remove file %d \n", error, label); }
-      if (!copy) {
-        sprintf(buff, "find /mnt/Y -type f -name \"%d\" -exec rm -f {} \\;", label);
-        error = system(buff);
-        if (error) { fprintf(stderr, "\nERROR : %d  when trying to remove file %d \n", error, label); }
-      }
-      mem_count -= used[label];
-      used[label] = 0;
-      file_count--;
     }
+    mem_count -= used[label];
+    used[label] = 0;
+    file_count--;
   }
+
 
   // write test, this is meant to measure sequential write performance but is not currently working
   {
@@ -317,13 +312,10 @@ void RandR(dir * root, int lim, int test) {
   }
 
   i = 0;
-  if (add_big_file && big_file_count < 5) {
-    while (big_files[label]) { label = rand()%5; }
-    make_file(path, 1000000 - label);
-  }
   while (!FULL) {
+    if (big_files) { big_file = !rand()%20; }
     while (used[i]) { i++; }
-    make_file(path, i);
+    make_file(path, i, big_file);
   }
 
 }
@@ -416,6 +408,7 @@ int main(int argc, char ** argv) {
   mem_lim = 5000000;
   file_size_min = 1;
   file_size_max = 150;
+  big_file_size_max = 200000;
   file_sys = "ext4";
   partX = "/dev/sda5";
   partY = "/dev/sda6";
@@ -435,12 +428,13 @@ int main(int argc, char ** argv) {
     if (!strcmp(argv[i], "-l")) { mem_lim = atoi(argv[++i]); }
     if (!strcmp(argv[i], "-btrfs")) { file_sys = "btrfs"; }
     if (!strcmp(argv[i], "-bt")) { block_trace = 1; }
+    if (!strcmp(argv[i], "-bf")) { big_files = 1; }
   }
 
   int fail = 0;
   char buff[1000];
 
-  fprintf(stderr, "\n**** FILL TEST ****\n\nSettings:\nBranch Factor = %d\nDir Limit = %d\nFile Size Min = %d\nFile Size Max = %d\nFile System = %s\nPartition X = %s\nPartition Y = %s\n\n", branch_factor, dir_lim, file_size_min, file_size_max, file_sys, partX, partY);
+  fprintf(stderr, "\n**** FILL TEST ****\n\nSettings:\nBranch Factor = %d\nDir Limit = %d\nFile Size Min = %d kB\nFile Size Max = %d kB\nBig File Size Max = %d kB\nFile System = %s\nPartition X = %s\nPartition Y = %s\n\n", branch_factor, dir_lim, file_size_min, file_size_max, big_file_size_max, file_sys, partX, partY);
 
   sync();
 
@@ -509,7 +503,7 @@ int main(int argc, char ** argv) {
     fflush(stderr);
     if ((i+1)%100 == 0) {
       fprintf(stderr, "\nRemove and Refill round %d\nCurrent Volume: %d kB,  File Count: %d\n", ++i, mem_count, file_count);
-      RandR(root, file_count/20, write_test);
+      RandR(root, 250000, write_test);
       grep_test();
       if (block_trace) {
         layout_test(partX, "/mnt/X/AAA");
@@ -517,7 +511,7 @@ int main(int argc, char ** argv) {
       }
       fprintf(stderr, "\nRemove and Refill progress: ");
     }
-    RandR(root, file_count/20, 0);
+    RandR(root, 250000, 0);
   }
 
   remove_dir(root);
