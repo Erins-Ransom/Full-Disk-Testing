@@ -164,7 +164,7 @@ void make_random(dir * root, int label) {
   sprintf(path, "%s", root->name);
   int index = 4;
   int action = 0;
-  int big_file = 0;
+//  int big_file = 0;
   
   while (DIR) {
     if (dir_count < dir_lim && DIR->subdirs < branch_factor) {
@@ -185,11 +185,11 @@ void make_random(dir * root, int label) {
     index += 4;
   }
 
-  if (big_files) {
-    big_file = !(rand()%100);
-  }
+//  if (big_files) {
+//    big_file = !(rand()%10000);
+//  }
 
-  make_file(path, label, big_file);
+  make_file(path, label, 0);
   DIR->files++;
 
 }
@@ -212,6 +212,7 @@ void RandR(dir * root, int lim, int test) {
       if (error) { fprintf(stderr, "\nERROR : %d  when trying to remove file %d \n", error, label); }
     }
     mem_count -= used[label];
+    if (used[label] > file_size_max) { big_file_count--; }
     used[label] = 0;
     file_count--;
   }
@@ -316,7 +317,7 @@ void RandR(dir * root, int lim, int test) {
 
   i = 0;
   while (!FULL) {
-    if (big_files) { big_file = !(rand()%100); }
+    if (big_files) { big_file = !(rand()%2000); }
     while (used[i]) { i++; }
     make_file(path, i, big_file);
   }
@@ -505,7 +506,7 @@ int main(int argc, char ** argv) {
     fprintf(stderr, "|");
     fflush(stderr);
     if ((i+1)%100 == 0) {
-      fprintf(stderr, "\nRemove and Refill round %d\nCurrent Volume: %d kB,  File Count: %d\n", ++i, mem_count, file_count);
+      fprintf(stderr, "\nRemove and Refill round %d\nCurrent Volume: %d kB,  File Count: %d (%d big files)\n", ++i, mem_count, file_count, big_file_count);
       RandR(root, 250000, write_test);
       grep_test();
       if (block_trace) {
