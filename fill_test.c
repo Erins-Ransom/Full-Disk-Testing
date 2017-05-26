@@ -317,7 +317,7 @@ void RandR(dir * root, int lim, int test) {
 
   i = 0;
   while (!FULL) {
-    if (big_files) { big_file = !(rand()%2000); }
+    if (big_files) { big_file = !(rand()%10000); }
     while (used[i]) { i++; }
     make_file(path, i, big_file);
   }
