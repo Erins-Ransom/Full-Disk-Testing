@@ -38,6 +38,7 @@ static short int big_files;
 static char * file_sys;
 static char * partX;
 static char * partY;
+static char * partZ;
 
 
 // tree struct to keep track of the directories being made
@@ -382,6 +383,44 @@ void grep_test() {
   fprintf(stderr, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
 
   printf("\n");
+
+
+  sync();
+  fail = umount("/mnt/Z");
+  if (fail)
+    fprintf(stderr, "Failed to unmount: %s\r", strerror(errno));
+  sync();
+  if (!strcmp(file_sys, "btrfs"))
+    sprintf(buff, "mkfs.btrfs -f %s -L Y &> /dev/null", partZ);
+  else
+    sprintf(buff, "mkfs.ext4 -q %s -L Y", partZ);
+  fail = system(buff);
+  sprintf(buff, "mount -t %s %s /mnt/Y", file_sys, partZ);
+  fail = system(buff);
+  if (fail) {
+    fprintf(stderr, "**** Failed to Mount %s ****\n", partZ);
+    return;
+  }
+
+  system("cp -a /mnt/X/AAA /mnt/Z/AAA");
+
+  fprintf(stderr, "performing grep on partition Z:");
+  sprintf(buff, "umount %s", partZ);
+  system(buff);
+  system("sync; echo 3 > /proc/sys/vm/drop_caches");
+  sprintf(buff, "mount -t %s %s /mnt/Z", file_sys, partZ);
+  system(buff);
+
+  clock_gettime(CLOCK_MONOTONIC, &start);
+  system("grep -r \" \" /mnt/Z/AAA > /dev/null");
+  clock_gettime(CLOCK_MONOTONIC, &end);
+  time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0;
+
+  fprintf(stderr, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
+
+  printf("\n");
+
+
 }
 
 
@@ -416,6 +455,7 @@ int main(int argc, char ** argv) {
   file_sys = "ext4";
   partX = "/dev/sda5";
   partY = "/dev/sda6";
+  partZ = "/dev/sda7";
 
   int i;
   for (i = 1; i < argc; i++) {
@@ -438,7 +478,7 @@ int main(int argc, char ** argv) {
   int fail = 0;
   char buff[1000];
 
-  fprintf(stderr, "\n**** FILL TEST ****\n\nSettings:\nBranch Factor = %d\nDir Limit = %d\nFile Size Min = %d kB\nFile Size Max = %d kB\nBig File Size Max = %d kB\nFile System = %s\nPartition X = %s\nPartition Y = %s\n\n", branch_factor, dir_lim, file_size_min, file_size_max, big_file_size_max, file_sys, partX, partY);
+  fprintf(stderr, "\n**** FILL TEST ****\n\nSettings:\nBranch Factor = %d\nDir Limit = %d\nFile Size Min = %d kB\nFile Size Max = %d kB\nBig File Size Max = %d kB\nFile System = %s\nPartition X = %s\nPartition Y = %s\nPartition Z = %s\n\n", branch_factor, dir_lim, file_size_min, file_size_max, big_file_size_max, file_sys, partX, partY, partZ);
 
   sync();
 
@@ -462,12 +502,29 @@ int main(int argc, char ** argv) {
     sprintf(buff, "mkfs.ext4 -q %s -L Y", partY);
   system(buff);
 
+  sprintf(buff, "umount %s", partZ);
+  fail = system(buff);
+  if (fail) { fprintf(stderr, "**** Failed to Unmount %s ****\n", partZ); }
+
+  if (!strcmp(file_sys, "btrfs"))
+    sprintf(buff, "mkfs.btrfs -f %s -L Z", partZ);
+  else
+    sprintf(buff, "mkfs.ext4 -q %s -L Z", partZ);
+  system(buff);
+
+
+
   sprintf(buff, "hdparm -t %s", partY);
   system(buff);
   system(buff);
   system(buff);
 
   sprintf(buff, "hdparm -t %s", partX);
+  system(buff);
+  system(buff);
+  system(buff);
+
+  sprintf(buff, "hdparm -t %s", partZ);
   system(buff);
   system(buff);
   system(buff);
@@ -484,6 +541,7 @@ int main(int argc, char ** argv) {
 
   if (fail) { fprintf(stderr, "**** Failed to Mount %s ****\n", partY); return 1; }
 
+  system("mkdir /mnt/Z");
 
   dir * root = make_dir("");
 
@@ -499,13 +557,14 @@ int main(int argc, char ** argv) {
   if (block_trace) {
     layout_test(partX, "/mnt/X/AAA");
     layout_test(partY, "/mnt/Y/AAA");
+    layout_test(partZ, "/mnt/Z/AAA");
   }
 
   fprintf(stderr, "\nRemove and Refill progress: ");
-  for (i = 0; i < 800; i++) {
+  for (i = 0; i < 600; i++) {
     fprintf(stderr, "|");
     fflush(stderr);
-    if ((i+1)%100 == 0) {
+    if ((i+1)%50 == 0) {
       fprintf(stderr, "\nRemove and Refill round %d\nCurrent Volume: %d kB,  File Count: %d (%d big files)\n", ++i, mem_count, file_count, big_file_count);
       RandR(root, 250000, write_test);
       grep_test();
