@@ -402,7 +402,7 @@ void grep_test() {
     return;
   }
 
-  system("cp -a /mnt/X/AAA /mnt/Z/AAA");
+  system("cp -a /mnt/X/AAA /mnt/Z/.");
 
   fprintf(stderr, "performing grep on partition Z:");
   sprintf(buff, "umount %s", partZ);
@@ -542,6 +542,10 @@ int main(int argc, char ** argv) {
   if (fail) { fprintf(stderr, "**** Failed to Mount %s ****\n", partY); return 1; }
 
   system("mkdir /mnt/Z");
+  sprintf(buff, "mount -t %s %s /mnt/Z", file_sys, partZ);
+  fail = system(buff);
+
+  if (fail) { fprintf(stderr, "**** Faild to Mount %s ****\n", partY); return 1; }
 
   dir * root = make_dir("");
 
