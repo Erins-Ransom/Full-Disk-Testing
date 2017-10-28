@@ -391,11 +391,11 @@ void grep_test() {
     fprintf(stderr, "Failed to unmount: %s\r", strerror(errno));
   sync();
   if (!strcmp(file_sys, "btrfs"))
-    sprintf(buff, "mkfs.btrfs -f %s -L Y &> /dev/null", partZ);
+    sprintf(buff, "mkfs.btrfs -f %s -L Z &> /dev/null", partZ);
   else
-    sprintf(buff, "mkfs.ext4 -q %s -L Y", partZ);
+    sprintf(buff, "mkfs.ext4 -q %s -L Z", partZ);
   fail = system(buff);
-  sprintf(buff, "mount -t %s %s /mnt/Y", file_sys, partZ);
+  sprintf(buff, "mount -t %s %s /mnt/Z", file_sys, partZ);
   fail = system(buff);
   if (fail) {
     fprintf(stderr, "**** Failed to Mount %s ****\n", partZ);
