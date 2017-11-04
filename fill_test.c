@@ -31,8 +31,8 @@ static int file_size_max;
 static int file_size_min;
 static int RandR_index;
 static int used[100000];
-static double write_time[600];
-static double delete_time[600];
+static double write_time[2][600];
+static double delete_time[2][600];
 static short int FULL;
 static short int copy;
 static short int write_test;
@@ -42,7 +42,7 @@ static char * file_sys;
 static char * partX;
 static char * partY;
 static char * partZ;
-static FILE * log;
+
 
 
 // tree struct to keep track of the directories being made
@@ -112,6 +112,8 @@ void make_file(char * path, int label, int big_file) {
 
   char buff[1001];
 
+  struct timespec start, end;
+
   errno = 0;
 
   sprintf(buff, "/mnt/X%s/%d", path, label);
@@ -143,8 +145,21 @@ void make_file(char * path, int label, int big_file) {
     buff[1000] = '\0';
     for (i = 0; i < size; i++) {
       for (j = 0; j < 1000; j ++) { buff[j] = rand()%90 + 32; }
+      fsync();
+      clock_gettime(CLOCK_MONOTONIC, &start);
       fprintf(fp1, "%s", buff);
-      if (!copy) { fprintf(fp2, "%s", buff); }
+      fflush(fp1);
+      fsync();
+      clock_gettime(CLOCK_MONOTONIC, &end);
+      write_time[0][RandR_index] += 1000*((end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0);
+      fsync();
+      clock_gettime(CLOCK_MONOTONIC, &start);
+      fprintf(fp2, "%s", buff); 
+      fflush(fp2);
+      fsync();
+      clock_gettime(CLOCK_MONOTONIC, &end);
+      write_time[1][RandR_index] += 1000*((end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0);
+
     }
 
     mem_count += size;
@@ -208,19 +223,27 @@ void RandR(dir * root, int lim, int test) {
   struct timespec start, end;
   double time = 0;
 
+  write_time[0][RandR_index] = 0;
+  write_time[1][RandR_index] = 0;
+
   while (mem_count > mem_lim - lim) {
     while (!used[label]) { label = rand()%file_count; }
     sprintf(buff, "find /mnt/X -type f -name \"%d\" -exec rm -f {} \\;", label);
+    fsync();
     clock_gettime(CLOCK_MONOTONIC, &start);
     error = system(buff);
+    fsync();
     clock_gettime(CLOCK_MONOTONIC, &end);
-    time += 1000000*((end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0);
+    delete_time[0][RandR_index] += 1000*((end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0);
     if (error) { fprintf(stderr, "\nERROR : %d  when trying to remove file %d \n", error, label); }
-    if (!copy) {
-      sprintf(buff, "find /mnt/Y -type f -name \"%d\" -exec rm -f {} \\;", label);
-      error = system(buff);
-      if (error) { fprintf(stderr, "\nERROR : %d  when trying to remove file %d \n", error, label); }
-    }
+    sprintf(buff, "find /mnt/Y -type f -name \"%d\" -exec rm -f {} \\;", label);
+    fsync();
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    error = system(buff);
+    fsync();
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    delete_time[1][RandR_index] += 1000*((end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0);
+    if (error) { fprintf(stderr, "\nERROR : %d  when trying to remove file %d \n", error, label); }
     mem_count -= used[label];
     if (used[label] > file_size_max) { big_file_count--; }
     used[label] = 0;
@@ -229,7 +252,10 @@ void RandR(dir * root, int lim, int test) {
     i++;
   }
 
-  delete_time[RandR_index] = time/lim;
+  delete_time[0][RandR_index] /= lim;
+  delete_time[1][RandR_index] /= lim;
+
+  fprintf(stdout, "\nDelete Time (X,Y):\t%f, %f", delete_time[0][RandR_index], delete_time[1][RandR_index]);
 
   FULL = 0;
 
@@ -268,22 +294,25 @@ void RandR(dir * root, int lim, int test) {
     make_file(path, i, big_file);
     fsync();
     clock_gettime(CLOCK_MONOTONIC, &end);
-    time += 1000000*((end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0);
+    time += 1000*((end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0);
   }
 
-  write_time[RandR_index] = time/lim;
+  write_time[0][RandR_index] /= lim;
+  write_time[1][RandR_index] /= lim;
+
+  fprintf(stdout, "\nWrite Time (X, Y):\t%f, %f\n", write_time[0][RandR_index], write_time[1][RandR_index]);
 
 }
 
 // function that performs timed greps on both directories
-void grep_test() {
+void grep_test(FILE * out) {
 
   int fail;
   struct timespec start, end;
   double time;
   char buff[100];
 
-  fprintf(log, "\nperforming grep on partition X:");
+  fprintf(out, "\nperforming grep on partition X:");
   sprintf(buff, "umount %s", partX);
   system(buff);
   system("sync; echo 3 > /proc/sys/vm/drop_caches");
@@ -295,30 +324,9 @@ void grep_test() {
   clock_gettime(CLOCK_MONOTONIC, &end);
   time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0;
 
-  fprintf(log, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
+  fprintf(out, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
 
-  if (copy) {
-    fprintf(stderr, "Reformatting Y and copying over contents of X ... \n");
-    sync();
-    fail = umount("/mnt/Y"); 
-    if (fail)  
-      fprintf(stderr, "Failed to unmount: %s\r", strerror(errno)); 
-    sync();
-    if (!strcmp(file_sys, "btrfs"))
-      sprintf(buff, "mkfs.btrfs -f %s -L Y &> /dev/null", partY);
-    else
-      sprintf(buff, "mkfs.ext4 -q %s -L Y", partY);
-    fail = system(buff);
-    sprintf(buff, "mount -t %s %s /mnt/Y", file_sys, partY);
-    fail = system(buff);
-    if (fail) {
-      fprintf(stderr, "**** Failed to Mount %s ****\n", partY);
-      return;
-    }
-    system("cp -a /mnt/X/AAA /mnt/Y/AAA");
-  }
-
-  fprintf(log, "performing grep on partition Y:");
+  fprintf(out, "performing grep on partition Y:");
   sprintf(buff, "umount %s", partY);
   system(buff);
   system("sync; echo 3 > /proc/sys/vm/drop_caches");
@@ -330,7 +338,7 @@ void grep_test() {
   clock_gettime(CLOCK_MONOTONIC, &end);
   time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0;
 
-  fprintf(log, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
+  fprintf(out, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
 
   printf("\n");
 
@@ -354,7 +362,7 @@ void grep_test() {
 
   system("cp -a /mnt/X/AAA /mnt/Z/.");
 
-  fprintf(log, "performing grep on partition Z:");
+  fprintf(out, "performing grep on partition Z:");
   sprintf(buff, "umount %s", partZ);
   system(buff);
   system("sync; echo 3 > /proc/sys/vm/drop_caches");
@@ -366,7 +374,7 @@ void grep_test() {
   clock_gettime(CLOCK_MONOTONIC, &end);
   time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0;
 
-  fprintf(log, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
+  fprintf(out, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
 
   printf("\n");
 
@@ -430,12 +438,15 @@ int main(int argc, char ** argv) {
 
 
   sprintf(buff, "fill_test_%s.log", file_sys);
-  log = fopen(buff, "w");
+  FILE * out = fopen(buff, "w");
+  if (!out) { fprintf(stdout, "Failled to open output file\n"); return 1; }
+//  out = stdout;
   stderr = fopen("fill_test_err.log", "w");
 
 
-  fprintf(stderr, "\n**** FILL TEST ****\n\nSettings:\nBranch Factor = %d\nDir Limit = %d\nFile Size Min = %d kB\nFile Size Max = %d kB\nBig File Size Max = %d kB\nFile System = %s\nPartition X = %s\nPartition Y = %s\nPartition Z = %s\n\n", branch_factor, dir_lim, file_size_min, file_size_max, big_file_size_max, file_sys, partX, partY, partZ);
+  fprintf(out, "\n**** FILL TEST ****\n\nSettings:\nBranch Factor = %d\nDir Limit = %d\nFile Size Min = %d kB\nFile Size Max = %d kB\nBig File Size Max = %d kB\nFile System = %s\nPartition X = %s\nPartition Y = %s\nPartition Z = %s\n\n", branch_factor, dir_lim, file_size_min, file_size_max, big_file_size_max, file_sys, partX, partY, partZ);
 
+  fflush(out);
   sync();
 
   sprintf(buff, "umount %s", partX);
@@ -507,45 +518,49 @@ int main(int argc, char ** argv) {
 
   int test_num = 1;
 
-  fprintf(stderr, "\ncreating random directories and files ... \n");
+  fprintf(out, "\ncreating random directories and files ... \n");
 
   while (!FULL) { make_random(root, file_count); }
 
-  fprintf(stderr, "kB written:\t%d\t\tfiles created:\t%d (%d big files)\n", mem_count, file_count, big_file_count);
+  fprintf(out, "kB written:\t%d\t\tfiles created:\t%d (%d big files)\n", mem_count, file_count, big_file_count);
   
-  grep_test();
+  grep_test(out);
   if (block_trace) {
     layout_test(partX, "/mnt/X/AAA");
     layout_test(partY, "/mnt/Y/AAA");
     layout_test(partZ, "/mnt/Z/AAA");
   }
 
+  fflush(out);
+
   fprintf(stdout, "\n");
   for (i = 0; i < 600; i++) {
     fprintf(stderr, "|");
     fflush(stderr);
     if ((i+1)%50 == 0) {
-      fprintf(stderr, "\nRemove and Refill round %d\nCurrent Volume: %d kB,  File Count: %d (%d big files)\n", ++i, mem_count, file_count, big_file_count);
+      fprintf(out, "\nRemove and Refill round %d\nCurrent Volume: %d kB,  File Count: %d (%d big files)\n", ++i, mem_count, file_count, big_file_count);
       RandR(root, 250000, write_test);
-      grep_test();
+      grep_test(out);
       if (block_trace) {
         layout_test(partX, "/mnt/X/AAA");
         layout_test(partY, "/mnt/Y/AAA");
       }
-      fprintf(stdout, "\rRemove and Refill progress: %i", RandR_index+1);
+//      fprintf(stdout, "\rRemove and Refill progress: %i", RandR_index+1);
     }
     RandR(root, 250000, 0);
     RandR_index++;
+    fflush(out);
   }
 
   remove_dir(root);
 
-  fprintf(log, "\nAverage Delete Times:\n");
-  for (i=0; i < 600; i++); { fprintf(log, "%f/n", delete_time[i]); }
+  fprintf(out, "\nAverage Delete Times (X, Y):\n");
+  for (i=0; i < 600; i++); { fprintf(out, "%f, %f\n", delete_time[0][i], delete_time[0][i]); }
 
-  fprintf(log, "\nAverage Write Times:\n");
-  for (i=0; i < 600; i++); { fprintf(log, "%f/n", write_time[i]); }
+  fprintf(out, "\nAverage Write Times (X, Y):\n");
+  for (i=0; i < 600; i++); { fprintf(out, "%f, %f\n", write_time[0][i], write_time[1][i]); }
 
+  fclose(out);
 
   return 0;
 
