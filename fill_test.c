@@ -29,7 +29,7 @@ static int dir_lim;
 static int big_file_size_max;
 static int file_size_max;
 static int file_size_min;
-static int RandR_index;
+static int rounds;
 static int used[100000];
 static double t1, t2;
 static short int FULL;
@@ -62,7 +62,7 @@ dir * make_dir(char * path);
 void remove_dir(dir * root);
 
 // function that generates a file full of random characters in the directory of the given node
-void make_file(char * path, int label, int big_file);
+void make_file(char * path, int label, int call_lim);
 
 // function that randomly adds a new file and subdirectires to the given directory
 void make_random(dir * root, int label);
@@ -71,7 +71,7 @@ void make_random(dir * root, int label);
 void RandR(dir * root, int lim, int test);
 
 // function that performs timed greps on both directories
-void grep_test();
+void grep_test(int call_lim);
 
 void layout_test(char * part, char * directory);
 
@@ -88,6 +88,7 @@ int main(int argc, char ** argv) {
   file_size_min = 1;
   file_size_max = 150;
   big_file_size_max = 200000;
+  rounds = 600;
   file_sys = "ext4";
   partX = "/dev/sda5";
   partY = "/dev/sda6";
@@ -96,7 +97,7 @@ int main(int argc, char ** argv) {
   int fail = 0;
   int i;
   char buff[1000];
-  FILE * out = NULL;
+
 
   for (i = 1; i < argc; i++) {
     if (!strcmp(argv[i], "-c")) { copy = 1; }
@@ -116,37 +117,8 @@ int main(int argc, char ** argv) {
   }
 
 
-//  sprintf(buff, "fill_test_%s.out", file_sys);
-//  FILE * out = fopen(buff, "w");
-//  if (!out) { fprintf(stdout, "Failled to open output file\n"); return 1; }
-//  fclose(out);
-  sprintf(buff, "%s_X.out", file_sys);
-  out = fopen(buff, "w");
-  fclose(out);
-  sprintf(buff, "%s_Y.out", file_sys);
-  out = fopen(buff, "w");
-  fclose(out);
-  sprintf(buff, "%s_Z.out", file_sys);
-  out = fopen(buff, "w");
-  fclose(out);
-  sprintf(buff, "%s_X_del.out", file_sys);
-  out = fopen(buff, "w");
-  fclose(out);
-  sprintf(buff, "%s_X_write.out", file_sys);
-  out = fopen(buff, "w");
-  fclose(out);
-  sprintf(buff, "%s_Y_del.out", file_sys);
-  out = fopen(buff, "w");
-  fclose(out);
-  sprintf(buff, "%s_Y_write.out", file_sys);
-  out = fopen(buff, "w");
-  fclose(out);
+  fprintf(stdout, "\n**** FILL TEST ****\n\nSettings:\nBranch Factor = %d\nDir Limit = %d\nFile Size Min = %d kB\nFile Size Max = %d kB\nFile System = %s\nRounds = %d\nPartition X = %s\nPartition Y = %s\nPartition Z = %s\n\n", branch_factor, dir_lim, file_size_min, file_size_max, file_sys, rounds, partX, partY, partZ);
 
-
-//  fprintf(out, "\n**** FILL TEST ****\n\nSettings:\nBranch Factor = %d\nDir Limit = %d\nFile Size Min = %d kB\nFile Size Max = %d kB\nBig File Size Max = %d kB\nFile System = %s\nPartition X = %s\nPartition Y = %s\nPartition Z = %s\n\n", branch_factor, dir_lim, file_size_min, file_size_max, big_file_size_max, file_sys, partX, partY, partZ);
-  fprintf(stdout, "\n**** FILL TEST ****\n\nSettings:\nBranch Factor = %d\nDir Limit = %d\nFile Size Min = %d kB\nFile Size Max = %d kB\nBig File Size Max = %d kB\nFile System = %s\nPartition X = %s\nPartition Y = %s\nPartition Z = %s\n\n", branch_factor, dir_lim, file_size_min, file_size_max, big_file_size_max, file_sys, partX, partY, partZ);
-
-//  fflush(out);
   sync();
 
   sprintf(buff, "umount %s", partX);
@@ -216,57 +188,37 @@ int main(int argc, char ** argv) {
 
   dir * root = make_dir("");
 
-  int test_num = 1;
-
-//  fprintf(out, "\ncreating random directories and files ... \n");
   fprintf(stdout, "\ncreating random directories and files ... \n");
 
   while (!FULL) { make_random(root, file_count); }
 
-//  fprintf(out, "kB written:\t%d\t\tfiles created:\t%d (%d big files)\n", mem_count, file_count, big_file_count);
   fprintf(stdout, "kB written:\t%d\t\tfiles created:\t%d (%d big files)\n", mem_count, file_count, big_file_count);
+  fprintf(stdout, "Average Write Time (X, Y): \t%f MB/sec, %f MB/sec\n", t1/mem_count, t2/mem_count);
 
-//  fprintf(out, "Average Write Time (X, Y): \t%f, %f\n", write_time[0][0]/mem_count, write_time[1][0]/mem_count);
-  fprintf(stdout, "Average Write Time (X, Y): \t%f, %f\n", t1/mem_count, t2/mem_count);
-
-  grep_test();
+  grep_test(rounds/50);
   if (block_trace) {
     layout_test(partX, "/mnt/X/AAA");
     layout_test(partY, "/mnt/Y/AAA");
     layout_test(partZ, "/mnt/Z/AAA");
   }
 
-  fflush(out);
 
-  fprintf(out, "\n");
   fprintf(stdout, "\n");
-  for (i = 0; i < 600; i++) {
-//    fprintf(stderr, "|");
-//    fflush(stderr);
+  for (i = 0; i < rounds; i++) {
     if ((i+1)%50 == 0) {
-//      fprintf(out, "\nRemove and Refill round %d\nCurrent Volume: %d kB,  File Count: %d (%d big files)\n", ++i, mem_count, file_count, big_file_count);
-      fprintf(stdout, "\nRemove and Refill round %d\nCurrent Volume: %d kB,  File Count: %d (%d big files)\n", ++i, mem_count, file_count, big_file_count);
-      RandR(root, 250000, write_test);
-      grep_test();
+      fprintf(stdout, "\nRemove and Refill round %d\nCurrent Volume: %d kB,  File Count: %d (%d big files)\n", i+1, mem_count, file_count, big_file_count);
+      RandR(root, 250000, rounds);
+      grep_test(rounds/50);
       if (block_trace) {
         layout_test(partX, "/mnt/X/AAA");
         layout_test(partY, "/mnt/Y/AAA");
+        layout_test(partZ, "/mnt/Z/AAA");
       }
     }
-    RandR(root, 250000, 0);
-    RandR_index++;
-//    fflush(out);
+    RandR(root, 250000, rounds);
   }
 
   remove_dir(root);
-
-//  fprintf(out, "\nAverage Delete Times (X, Y):\n");
-//  for (i=0; i < 600; i++); { fprintf(out, "%f, %f\n", delete_time[0][i], delete_time[1][i]); }
-
-//  fprintf(out, "\nAverage Write Times (X, Y):\n");
-//  for (i=0; i < 600; i++); { fprintf(out, "%f, %f\n", write_time[0][i], write_time[1][i]); }
-
-//  fclose(out);
 
   return 0;
 
@@ -399,7 +351,6 @@ void make_random(dir * root, int label) {
   sprintf(path, "%s", root->name);
   int index = 4;
   int action = 0;
-//  int big_file = 0;
 
   while (DIR) {
     if (dir_count < dir_lim && DIR->subdirs < branch_factor) {
@@ -420,10 +371,6 @@ void make_random(dir * root, int label) {
     index += 4;
   }
 
-//  if (big_files) {
-//    big_file = !(rand()%10000);
-//  }
-
   make_file(path, label, 0);
   DIR->files++;
 
@@ -431,18 +378,34 @@ void make_random(dir * root, int label) {
 
 
 
-void RandR(dir * root, int lim, int test) {
+void RandR(dir * root, int lim, int call_lim) {
 
   char buff[1000];
   int i, label = rand()%file_count, error = 0, big_file = 0;
   struct timespec start, end;
-  FILE * fp1, * fp2 = NULL;
+  static  FILE * fpXd, * fpXw, * fpYd, *fpYw;
+  static int calls;
 
-  sprintf(buff, "%s_X_del,out", file_sys);
-  fp1 = fopen(buff, "a");
-  sprintf(buff, "%s_Y_del.out", file_sys);
-  fp2 = fopen(buff, "a");
+  if (!fpXd) {
+    sprintf(buff, "%s_X_del,out", file_sys);
+    fpXd = fopen(buff, "w");
+  }
+  if (!fpYd) {
+    sprintf(buff, "%s_Y_del.out", file_sys);
+    fpYd = fopen(buff, "w");
+  }
+  if (!fpXw) {
+    sprintf(buff, "%s_X_write.out", file_sys);
+    fpXw = fopen(buff, "w");
+  }
+  if (!fpYw) {
+    sprintf(buff, "%s_Y_write.out", file_sys);
+    fpYw = fopen(buff, "w");
+  }
 
+  if (!(fpYw && fpXw && fpYd && fpXd)) { fprintf(stderr, "**** Failed to open output file **** \n"); }
+
+  calls++;
   t1, t2 = 0;
 
   while (mem_count > mem_lim - lim) {
@@ -471,10 +434,8 @@ void RandR(dir * root, int lim, int test) {
     i++;
   }
 
-  fprintf(fp1, "%f\n", lim/t1);
-  fprintf(fp2, "%f\n", lim/t2);
-  fclose(fp1);
-  fclose(fp2);
+  fprintf(fpXd, "%f\n", lim/t1);
+  fprintf(fpYd, "%f\n", lim/t2);
 
 //  fprintf(stdout, "\nRemove and Refill Round: \t%d", RandR_index);
 //  fprintf(stdout, "\nDelete Time (X,Y):\t%f, %f", delete_time[0][RandR_index], delete_time[1][RandR_index]);
@@ -514,28 +475,45 @@ void RandR(dir * root, int lim, int test) {
     make_file(path, i, big_file);
   }
 
-  sprintf(buff, "%s_X_write.out", file_sys);
-  fp1 = fopen(buff, "a");
-  sprintf(buff, "%s_Y_write.out", file_sys);
-  fp2 = fopen(buff, "a");
 
-  fprintf(fp1, "%f\n", lim/t1);
-  fprintf(fp2, "%f\n", lim/t2);
+  fprintf(fpXw, "%f\n", lim/t1);
+  fprintf(fpYw, "%f\n", lim/t2);
 
-  fclose(fp1);
-  fclose(fp2);
+  if (calls == call_lim) {
+    fclose(fpXd);
+    fclose(fpXw);
+    fclose(fpYd);
+    fclose(fpYw);
+  }
 
 }
 
 
 
-void grep_test() {
+void grep_test(int call_lim) {
 
   int fail;
   struct timespec start, end;
   double time;
   char buff[100];
-  FILE * fp = NULL;
+  static FILE * fpX, * fpY, * fpZ;
+  static int calls;
+
+  if (!fpX) {
+    sprintf(buff, "%s_X.out", file_sys);
+    fpX = fopen(buff, "w");
+  }
+  if (!fpY) {
+    sprintf(buff, "%s_Y.out", file_sys);
+    fpY = fopen(buff, "w");
+  }
+  if (!fpZ) {
+    sprintf(buff, "%s_Z.out", file_sys);
+    fpZ = fopen(buff, "w");
+  }
+  if (!(fpX && fpY && fpZ)) { fprintf(stderr, "**** Failed to open output file **** \n"); }
+
+  calls++;
 
 //  fprintf(out, "\nperforming grep on partition X:");
   fprintf(stdout, "\nperforming grep on partition X:");
@@ -551,14 +529,9 @@ void grep_test() {
   clock_gettime(CLOCK_MONOTONIC, &end);
   time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0;
 
-  sprintf(buff, "%s_X.out", file_sys);
-  fp = fopen(buff, "a");
-//  fprintf(out, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
-  fprintf(fp, "%f\n", (mem_count/1000)/time);
-  fclose(fp);
+  fprintf(fpX, "%f\n", (mem_count/1000)/time);
   fprintf(stdout, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
 
-//  fprintf(out, "performing grep on partition Y:");
   fprintf(stdout, "performing grep on partition Y:");
 
   sprintf(buff, "umount %s", partY);
@@ -572,15 +545,8 @@ void grep_test() {
   clock_gettime(CLOCK_MONOTONIC, &end);
   time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0;
 
-  sprintf(buff, "%s_Y.out", file_sys);
-  fp = fopen(buff, "a");
-//  fprintf(out, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
-  fprintf(fp, "%f\n", (mem_count/1000)/time);
-  fclose(fp);
+  fprintf(fpY, "%f\n", (mem_count/1000)/time);
   fprintf(stdout, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
-
-  printf("\n");
-
 
   sync();
   fail = umount("/mnt/Z");
@@ -601,7 +567,6 @@ void grep_test() {
 
   system("cp -a /mnt/X/AAA /mnt/Z/.");
 
-//  fprintf(out, "performing grep on partition Z:");
   fprintf(stdout, "performing grep on partition Z:");
 
   sprintf(buff, "umount %s", partZ);
@@ -615,15 +580,17 @@ void grep_test() {
   clock_gettime(CLOCK_MONOTONIC, &end);
   time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0;
 
-  sprintf(buff, "%s_Z.out", file_sys);
-  fp = fopen(buff, "a");
-//  fprintf(out, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
-  fprintf(fp, "%f\n", (mem_count/1000)/time);
-  fclose(fp);
+  fprintf(fpZ, "%f\n", (mem_count/1000)/time);
   fprintf(stdout, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
 
   printf("\n");
 
+
+  if (calls == call_lim) {
+    fclose(fpX);
+    fclose(fpY);
+    fclose(fpZ);
+  }
 
 }
 
