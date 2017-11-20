@@ -387,7 +387,7 @@ void RandR(dir * root, int lim, int call_lim) {
   static int calls;
 
   if (!fpXd) {
-    sprintf(buff, "%s_X_del,out", file_sys);
+    sprintf(buff, "%s_X_del.out", file_sys);
     fpXd = fopen(buff, "w");
   }
   if (!fpYd) {
@@ -437,9 +437,6 @@ void RandR(dir * root, int lim, int call_lim) {
   fprintf(fpXd, "%f\n", lim/t1);
   fprintf(fpYd, "%f\n", lim/t2);
 
-//  fprintf(stdout, "\nRemove and Refill Round: \t%d", RandR_index);
-//  fprintf(stdout, "\nDelete Time (X,Y):\t%f, %f", delete_time[0][RandR_index], delete_time[1][RandR_index]);
-
   FULL = 0;
 
   t1, t2 = 0;
@@ -479,6 +476,11 @@ void RandR(dir * root, int lim, int call_lim) {
   fprintf(fpXw, "%f\n", lim/t1);
   fprintf(fpYw, "%f\n", lim/t2);
 
+  fflush(fpXd);
+  fflush(fpXw);
+  fflush(fpYd);
+  fflush(fpYw);
+
   if (calls == call_lim) {
     fclose(fpXd);
     fclose(fpXw);
@@ -515,7 +517,6 @@ void grep_test(int call_lim) {
 
   calls++;
 
-//  fprintf(out, "\nperforming grep on partition X:");
   fprintf(stdout, "\nperforming grep on partition X:");
 
   sprintf(buff, "umount %s", partX);
@@ -585,6 +586,9 @@ void grep_test(int call_lim) {
 
   printf("\n");
 
+  fflush(fpX);
+  fflush(fpY);
+  fflush(fpZ);
 
   if (calls == call_lim) {
     fclose(fpX);
