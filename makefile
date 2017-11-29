@@ -1,6 +1,6 @@
 
 
-default: fill_test git_test
+default: fill_test
 
 blk_interpreter: blk_interpreter.c
 	gcc -g blk_interpreter.c -o blk_interpreter
