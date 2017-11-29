@@ -19,24 +19,20 @@ a partition that is at capacity versus one that has plenty of space.
 
 
 // counters and settings
-static int branch_factor;
+static int branch_factor;   // hom hand subdirectories we allow in a given directory
 static int dir_count;
-static int mem_count;
+static int mem_count;       // totla size of files wrtien in kB
 static int mem_lim;
 static int file_count;
-static int big_file_count;
 static int dir_lim;
-static int big_file_size_max;
 static int file_size_max;
 static int file_size_min;
-static int rounds;
-static int used[100000];
-static double t1, t2;
+static int rounds;          // how many remove and replace rounds to run
+static int used[100000];    // file labels used/size, file i has size used[i] or used[i]==0 if i is not a file name in use
+static double t1, t2;       // use these to time writes
 static short int FULL;
 static short int copy;
-static short int write_test;
 static short int block_trace;
-static short int big_files;
 static char * file_sys;
 static char * partX;
 static char * partY;
@@ -61,23 +57,26 @@ dir * make_dir(char * path);
 // recursive function that frees the subtree rooted at a given node 
 void remove_dir(dir * root);
 
-// function that generates a file full of random characters in the directory of the given node
-void make_file(char * path, int label, int call_lim);
+// function that generates a file named [label] full of random characters in the directory of the given node
+void make_file(char * path, int label);
 
 // function that randomly adds a new file and subdirectires to the given directory
+// it descendes the tree at random, possibly stopping and creating a file and possibly creating
+// new directories to descend into
 void make_random(dir * root, int label);
 
-// remove and repalce with added optional write test
-void RandR(dir * root, int lim, int test);
+// remove 5% of files at random and replace with new files in single new directory
+void RandR(dir * root, int lim, int call_lim);
 
-// function that performs timed greps on both directories
+// function that performs timed greps on both partitions
 void grep_test(int call_lim);
 
+// get the layout score of both partitions 
 void layout_test(char * part, char * directory);
 
 
 
-// some settings are not modular yet
+
 
 int main(int argc, char ** argv) {
 
@@ -87,7 +86,6 @@ int main(int argc, char ** argv) {
   mem_lim = 4750000;
   file_size_min = 1;
   file_size_max = 150;
-  big_file_size_max = 200000;
   rounds = 600;
   file_sys = "ext4";
   partX = "/dev/sda5";
@@ -98,22 +96,20 @@ int main(int argc, char ** argv) {
   int i;
   char buff[1000];
 
-
+  // parse settings (not all are modular yet)
   for (i = 1; i < argc; i++) {
-    if (!strcmp(argv[i], "-c")) { copy = 1; }
-    if (!strcmp(argv[i], "-w")) { write_test = 1; }
-    if (!strcmp(argv[i], "-x")) {
-      partX = malloc(strlen(argv[++i])+1);
-      strcpy(partX, argv[i]);
-    }
-    if (!strcmp(argv[i], "-y")) {
-      partY = malloc(strlen(argv[++i])+1);
-      strcpy(partY, argv[i]);
-    }
-    if (!strcmp(argv[i], "-l")) { mem_lim = atoi(argv[++i]); }
-    if (!strcmp(argv[i], "-btrfs")) { file_sys = "btrfs"; }
-    if (!strcmp(argv[i], "-bt")) { block_trace = 1; }
-    if (!strcmp(argv[i], "-bf")) { big_files = 1; }
+    if (!strcmp(argv[i], "-c")) 
+      copy = 1;
+    if (!strcmp(argv[i], "-x"))
+      partX = argv[++i];
+    if (!strcmp(argv[i], "-y"))
+      partY = argv[++i];
+    if (!strcmp(argv[i], "-l")) 
+      mem_lim = atoi(argv[++i]);
+    if (!strcmp(argv[i], "-fs")) 
+      file_sys = argv[++i];
+    if (!strcmp(argv[i], "-bt"))
+      block_trace = 1;
   }
 
 
@@ -192,8 +188,8 @@ int main(int argc, char ** argv) {
 
   while (!FULL) { make_random(root, file_count); }
 
-  fprintf(stdout, "kB written:\t%d\t\tfiles created:\t%d (%d big files)\n", mem_count, file_count, big_file_count);
-  fprintf(stdout, "Average Write Time (X, Y): \t%f MB/sec, %f MB/sec\n", t1/mem_count, t2/mem_count);
+  fprintf(stdout, "kB written:\t%d\t\tfiles created:\t%d\n", mem_count, file_count);
+  fprintf(stdout, "Average Write Time (part X, part Y): \t%f MB/sec, %f MB/sec\n", mem_count/t1, mem_count/t2);
 
   grep_test(rounds/50);
   if (block_trace) {
@@ -206,8 +202,8 @@ int main(int argc, char ** argv) {
   fprintf(stdout, "\n");
   for (i = 0; i < rounds; i++) {
     if ((i+1)%50 == 0) {
-      fprintf(stdout, "\nRemove and Refill round %d\nCurrent Volume: %d kB,  File Count: %d (%d big files)\n", i+1, mem_count, file_count, big_file_count);
-      RandR(root, 250000, rounds);
+      fprintf(stdout, "\nRemove and Refill round %d\nCurrent Volume: %d kB,  File Count: %d\n", i+1, mem_count, file_count);
+      RandR(root, mem_lim/20, rounds);
       grep_test(rounds/50);
       if (block_trace) {
         layout_test(partX, "/mnt/X/AAA");
@@ -215,7 +211,7 @@ int main(int argc, char ** argv) {
         layout_test(partZ, "/mnt/Z/AAA");
       }
     }
-    RandR(root, 250000, rounds);
+    RandR(root, mem_lim/20, rounds);
   }
 
   remove_dir(root);
@@ -271,7 +267,7 @@ void remove_dir(dir * root) {
 }
 
 
-void make_file(char * path, int label, int big_file) {
+void make_file(char * path, int label) {
 
   FILE * fp1 = NULL, * fp2 = NULL;
 
@@ -296,14 +292,7 @@ void make_file(char * path, int label, int big_file) {
 
 
   if (errno != ENOSPC) {
-    int size;
-
-    if (!big_file) {
-      size = rand()%(file_size_max + 1 - file_size_min) + file_size_min;
-    } else {
-      size = rand()%(big_file_size_max + 1 - file_size_max) + file_size_max;
-      big_file_count++;
-    }
+    int size = rand()%(file_size_max + 1 - file_size_min) + file_size_min;
 
     if (size + mem_count > mem_lim) { size = mem_lim - mem_count; }
 
@@ -371,7 +360,7 @@ void make_random(dir * root, int label) {
     index += 4;
   }
 
-  make_file(path, label, 0);
+  make_file(path, label);
   DIR->files++;
 
 }
@@ -381,7 +370,7 @@ void make_random(dir * root, int label) {
 void RandR(dir * root, int lim, int call_lim) {
 
   char buff[1000];
-  int i, label = rand()%file_count, error = 0, big_file = 0;
+  int i, label = rand()%file_count, error = 0;
   struct timespec start, end;
   static  FILE * fpXd, * fpXw, * fpYd, *fpYw;
   static int calls;
@@ -408,8 +397,13 @@ void RandR(dir * root, int lim, int call_lim) {
   calls++;
   t1, t2 = 0;
 
+  // remove files at random until we pass under the given limit
   while (mem_count > mem_lim - lim) {
+
+    // choose file to remove
     while (!used[label]) { label = rand()%file_count; }
+
+    // find and remove from partition X
     sprintf(buff, "find /mnt/X -type f -name \"%d\" -exec rm -f {} \\;", label);
     fsync();
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -418,6 +412,8 @@ void RandR(dir * root, int lim, int call_lim) {
     clock_gettime(CLOCK_MONOTONIC, &end);
     t1 += 1000*((end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0);
     if (error) { fprintf(stderr, "\nERROR : %d  when trying to remove file %d \n", error, label); }
+
+    // find and remove from partitioin Y
     sprintf(buff, "find /mnt/Y -type f -name \"%d\" -exec rm -f {} \\;", label);
     fsync();
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -426,19 +422,23 @@ void RandR(dir * root, int lim, int call_lim) {
     clock_gettime(CLOCK_MONOTONIC, &end);
     t2 += 1000*((end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0);
     if (error) { fprintf(stderr, "\nERROR : %d  when trying to remove file %d \n", error, label); }
+
+    // book keeping
     mem_count -= used[label];
-    if (used[label] > file_size_max) { big_file_count--; }
     used[label] = 0;
     file_count--;
 
     i++;
   }
 
+  // we keep a cumulative time for the removal of the files, then average their total
+  // size over the cululative time to remove them
+  // *NOTE* times are multiplied by 1000 (^ done earlier ^) since we want MB/sec and [lim] is in kB 
   fprintf(fpXd, "%f\n", lim/t1);
   fprintf(fpYd, "%f\n", lim/t2);
 
+  // reset counters
   FULL = 0;
-
   t1, t2 = 0;
   dir * DIR = root;
   char path[1000];
@@ -446,6 +446,7 @@ void RandR(dir * root, int lim, int call_lim) {
   int index = 4;
   int action = 0;
 
+  // choose place for replacement files
   while (DIR) {
     if (DIR->subdirs < branch_factor) {
       action = rand()%(DIR->subdirs + 1);
@@ -465,14 +466,14 @@ void RandR(dir * root, int lim, int call_lim) {
     }
   }
 
+  // make new files
   i = 0;
   while (!FULL) {
-    if (big_files) { big_file = !(rand()%10000); }
     while (used[i]) { i++; }
-    make_file(path, i, big_file);
+    make_file(path, i);
   }
 
-
+  // times are again cumulative and we average their total size over total time
   fprintf(fpXw, "%f\n", lim/t1);
   fprintf(fpYw, "%f\n", lim/t2);
 
@@ -509,13 +510,15 @@ void grep_test(int call_lim) {
     sprintf(buff, "%s_Y.out", file_sys);
     fpY = fopen(buff, "w");
   }
-  if (!fpZ) {
+  if (!fpZ && copy) {
     sprintf(buff, "%s_Z.out", file_sys);
     fpZ = fopen(buff, "w");
   }
-  if (!(fpX && fpY && fpZ)) { fprintf(stderr, "**** Failed to open output file **** \n"); }
+  if (!(fpX && fpY && (fpZ || !copy))) { fprintf(stderr, "**** Failed to open output file **** \n"); }
 
   calls++;
+
+  // for both partitionis we perform a recursive grep over the whole partition then take size over time
 
   fprintf(stdout, "\nperforming grep on partition X:");
 
@@ -549,51 +552,56 @@ void grep_test(int call_lim) {
   fprintf(fpY, "%f\n", (mem_count/1000)/time);
   fprintf(stdout, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
 
-  sync();
-  fail = umount("/mnt/Z");
-  if (fail)
-    fprintf(stderr, "Failed to unmount: %s\r", strerror(errno));
-  sync();
-  if (!strcmp(file_sys, "btrfs"))
-    sprintf(buff, "mkfs.btrfs -f %s -L Z &> /dev/null", partZ);
-  else
-    sprintf(buff, "mkfs.ext4 -q %s -L Z", partZ);
-  fail = system(buff);
-  sprintf(buff, "mount -t %s %s /mnt/Z", file_sys, partZ);
-  fail = system(buff);
-  if (fail) {
-    fprintf(stderr, "**** Failed to Mount %s ****\n", partZ);
-    return;
+  // if we are want to test a clean copy, we copy over the contents to a freshly formatted partition
+  if (copy) {
+    sync();
+    fail = umount("/mnt/Z");
+    if (fail)
+      fprintf(stderr, "Failed to unmount: %s\r", strerror(errno));
+    sync();
+    if (!strcmp(file_sys, "btrfs"))
+      sprintf(buff, "mkfs.btrfs -f %s -L Z &> /dev/null", partZ);
+    else
+      sprintf(buff, "mkfs.ext4 -q %s -L Z", partZ);
+    fail = system(buff);
+    sprintf(buff, "mount -t %s %s /mnt/Z", file_sys, partZ);
+    fail = system(buff);
+    if (fail) {
+      fprintf(stderr, "**** Failed to Mount %s ****\n", partZ);
+      return;
+    }
+
+    system("cp -a /mnt/X/AAA /mnt/Z/.");
+
+    fprintf(stdout, "performing grep on partition Z:");
+
+    sprintf(buff, "umount %s", partZ);
+    system(buff);
+    system("sync; echo 3 > /proc/sys/vm/drop_caches");
+    sprintf(buff, "mount -t %s %s /mnt/Z", file_sys, partZ);
+    system(buff);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    system("grep -r \" \" /mnt/Z/AAA > /dev/null");
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0;
+
+    fprintf(fpZ, "%f\n", (mem_count/1000)/time);
+    fprintf(stdout, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
+    
+    fflush(fpZ);
+    if (calls == call_lim)
+       fclose(fpZ);
   }
-
-  system("cp -a /mnt/X/AAA /mnt/Z/.");
-
-  fprintf(stdout, "performing grep on partition Z:");
-
-  sprintf(buff, "umount %s", partZ);
-  system(buff);
-  system("sync; echo 3 > /proc/sys/vm/drop_caches");
-  sprintf(buff, "mount -t %s %s /mnt/Z", file_sys, partZ);
-  system(buff);
-
-  clock_gettime(CLOCK_MONOTONIC, &start);
-  system("grep -r \" \" /mnt/Z/AAA > /dev/null");
-  clock_gettime(CLOCK_MONOTONIC, &end);
-  time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec)/1000000000.0;
-
-  fprintf(fpZ, "%f\n", (mem_count/1000)/time);
-  fprintf(stdout, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
 
   printf("\n");
 
   fflush(fpX);
   fflush(fpY);
-  fflush(fpZ);
 
   if (calls == call_lim) {
     fclose(fpX);
     fclose(fpY);
-    fclose(fpZ);
   }
 
 }
