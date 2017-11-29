@@ -616,4 +616,39 @@ void layout_test(char * part, char * directory) {
 }
 
 
+/*
+static int setup_dev(char * dev, char * mnt) {
 
+  char buff[100];
+  int fail = 0;
+
+  if (strcmp(file_sys, "betrfs")) {
+    sprintf(buff, "sudo mkfs -t ext4 -E lazy_itable_init=0,lazy_journal_init=0 %s", dev);
+    fail = system(buff);
+    if (fail) { return fail; }
+
+    system("sudo mkdir -p "MNT);
+    fail = system("sudo mount -t ext4 "SB_DEV" "MNT);
+    if (fail) { return fail; }
+
+    system("sudo rm -rf "MNT"/*\nsudo mkdir "MNT"/db\nsudo mkdir "MNT"/dev\nsudo touch "MNT"/dev/null\nsudo mkdir "MNT"/tmp\n");
+    sync();
+    system("sudo chmod 1777 "MNT"/tmp\n");
+    fail = system("sudo umount "MNT);
+    if (fail) { return fail; }
+
+    system("sudo modprobe zlib");
+    fail = system("sudo insmod "REPO"/filesystem/ftfs.ko sb_dev="SB_DEV" sb_fstype=ext4");
+    if (fail) { return fail; }
+
+    system("sudo touch dummy.dev\nsudo losetup /dev/loop0 dummy.dev\n");
+    fail = system("sudo mount -t ftfs /dev/loop0 "MNT" -o max=128");
+
+    if (!fail) {
+      fprintf(stdout, "FTFS has been mounted, ");
+    }
+  }
+
+  return fail;
+}
+*/
