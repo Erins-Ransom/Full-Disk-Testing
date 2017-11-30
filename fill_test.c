@@ -88,9 +88,9 @@ int main(int argc, char ** argv) {
   file_size_max = 150;
   rounds = 600;
   file_sys = "ext4";
-  partX = "/dev/sda5";
-  partY = "/dev/sda6";
-  partZ = "/dev/sda7";
+  partX = "/dev/sdb6";
+  partY = "/dev/sdb5";
+  partZ = "/dev/sdb7";
 
   int fail = 0;
   int i;
@@ -395,7 +395,8 @@ void RandR(dir * root, int lim, int call_lim) {
   if (!(fpYw && fpXw && fpYd && fpXd)) { fprintf(stderr, "**** Failed to open output file **** \n"); }
 
   calls++;
-  t1, t2 = 0;
+  t1 = 0;
+  t2 = 0;
 
   // remove files at random until we pass under the given limit
   while (mem_count > mem_lim - lim) {
@@ -439,7 +440,8 @@ void RandR(dir * root, int lim, int call_lim) {
 
   // reset counters
   FULL = 0;
-  t1, t2 = 0;
+  t1 = 0;
+  t2 = 0;
   dir * DIR = root;
   char path[1000];
   sprintf(path, "%s", root->name);
