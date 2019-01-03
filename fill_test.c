@@ -88,9 +88,9 @@ int main(int argc, char ** argv) {
   file_size_max = 150;
   rounds = 600;
   file_sys = "ext4";
-  partX = "/dev/sdb6";
-  partY = "/dev/sdb5";
-  partZ = "/dev/sdb7";
+  partX = "/dev/sdb3";
+  partY = "/dev/sdb4";
+  partZ = "/dev/sdb5";
 
   int fail = 0;
   int i;
@@ -122,9 +122,11 @@ int main(int argc, char ** argv) {
   if (fail) { fprintf(stderr, "**** Failed to Unmount %s ****\n", partX); }
 
   if (!strcmp(file_sys, "btrfs"))
-    sprintf(buff, "mkfs.btrfs -f %s -L X", partX);
+    sprintf(buff, "mkfs.btrfs -f %s", partX);
+  else if (!strcmp(file_sys, "xfs"))
+    sprintf(buff, "mkfs.xfs -q -f %s", partX);
   else
-    sprintf(buff, "mkfs.ext4 -q %s -L X", partX);
+    sprintf(buff, "mkfs.ext4 -q %s", partX);
   system(buff);
 
   sprintf(buff, "umount %s", partY);
@@ -132,9 +134,11 @@ int main(int argc, char ** argv) {
   if (fail) { fprintf(stderr, "**** Failed to Unmount %s ****\n", partY); }
 
   if (!strcmp(file_sys, "btrfs"))
-    sprintf(buff, "mkfs.btrfs -f %s -L Y", partY);
+    sprintf(buff, "mkfs.btrfs -f %s", partY);
+  else if (!strcmp(file_sys, "xfs"))
+    sprintf(buff, "mkfs.xfs -q -f %s", partY);
   else
-    sprintf(buff, "mkfs.ext4 -q %s -L Y", partY);
+    sprintf(buff, "mkfs.ext4 -q %s", partY);
   system(buff);
 
   sprintf(buff, "umount %s", partZ);
@@ -142,9 +146,11 @@ int main(int argc, char ** argv) {
   if (fail) { fprintf(stderr, "**** Failed to Unmount %s ****\n", partZ); }
 
   if (!strcmp(file_sys, "btrfs"))
-    sprintf(buff, "mkfs.btrfs -f %s -L Z", partZ);
+    sprintf(buff, "mkfs.btrfs -f %s", partZ);
+  else if (!strcmp(file_sys, "xfs"))
+    sprintf(buff, "mkfs.xfs -q -f %s", partZ);
   else
-    sprintf(buff, "mkfs.ext4 -q %s -L Z", partZ);
+    sprintf(buff, "mkfs.ext4 -q %s", partZ);
   system(buff);
 
 
@@ -562,9 +568,11 @@ void grep_test(int call_lim) {
       fprintf(stderr, "Failed to unmount: %s\r", strerror(errno));
     sync();
     if (!strcmp(file_sys, "btrfs"))
-      sprintf(buff, "mkfs.btrfs -f %s -L Z &> /dev/null", partZ);
+      sprintf(buff, "mkfs.btrfs -f %s &> /dev/null", partZ);
+    else if (!strcmp(file_sys, "xfs"))
+      sprintf(buff, "mkfs.xfs -q -f %s", partZ);
     else
-      sprintf(buff, "mkfs.ext4 -q %s -L Z", partZ);
+      sprintf(buff, "mkfs.ext4 -q %s", partZ);
     fail = system(buff);
     sprintf(buff, "mount -t %s %s /mnt/Z", file_sys, partZ);
     fail = system(buff);
