@@ -88,9 +88,9 @@ int main(int argc, char ** argv) {
   file_size_max = 150;
   rounds = 600;
   file_sys = "ext4";
-  partX = "/dev/sdb3";
-  partY = "/dev/sdb4";
-  partZ = "/dev/sdb5";
+  partX = "/dev/sdc1";
+  partY = "/dev/sdc2";
+  partZ = "/dev/sdc3";
 
   int fail = 0;
   int i;
@@ -125,6 +125,8 @@ int main(int argc, char ** argv) {
     sprintf(buff, "mkfs.btrfs -f %s", partX);
   else if (!strcmp(file_sys, "xfs"))
     sprintf(buff, "mkfs.xfs -q -f %s", partX);
+  else if (!strcmp(file_sys, "f2fs"))
+    sprintf(buff, "mkfs.f2fs %s", partX);
   else
     sprintf(buff, "mkfs.ext4 -q %s", partX);
   system(buff);
@@ -137,6 +139,8 @@ int main(int argc, char ** argv) {
     sprintf(buff, "mkfs.btrfs -f %s", partY);
   else if (!strcmp(file_sys, "xfs"))
     sprintf(buff, "mkfs.xfs -q -f %s", partY);
+  else if (!strcmp(file_sys, "f2fs"))
+    sprintf(buff, "mkfs.f2fs %s", partY);
   else
     sprintf(buff, "mkfs.ext4 -q %s", partY);
   system(buff);
@@ -149,6 +153,8 @@ int main(int argc, char ** argv) {
     sprintf(buff, "mkfs.btrfs -f %s", partZ);
   else if (!strcmp(file_sys, "xfs"))
     sprintf(buff, "mkfs.xfs -q -f %s", partZ);
+  else if (!strcmp(file_sys, "f2fs"))
+    sprintf(buff, "mkfs.f2fs %s", partZ);
   else
     sprintf(buff, "mkfs.ext4 -q %s", partZ);
   system(buff);
@@ -326,12 +332,13 @@ void make_file(char * path, int label) {
     mem_count += size;
     used[label] = size;
     file_count++;
+    
+    free(contents);
 
   } else {
     FULL = 1;
   }
 
-  free(contents);
   if (mem_count >= mem_lim) { FULL = 1; }
   if (fp1) { fclose(fp1); }
   if (fp2) { fclose(fp2); }
@@ -571,6 +578,8 @@ void grep_test(int call_lim) {
       sprintf(buff, "mkfs.btrfs -f %s &> /dev/null", partZ);
     else if (!strcmp(file_sys, "xfs"))
       sprintf(buff, "mkfs.xfs -q -f %s", partZ);
+    else if (!strcmp(file_sys, "f2fs"))
+      sprintf(buff, "mkfs.f2fs %s", partZ);
     else
       sprintf(buff, "mkfs.ext4 -q %s", partZ);
     fail = system(buff);
