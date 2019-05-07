@@ -161,12 +161,12 @@ int main(int argc, char ** argv) {
 
 
 
-  sprintf(buff, "hdparm -t %s", partY);
+  sprintf(buff, "hdparm -t %s", partX);
   system(buff);
   system(buff);
   system(buff);
 
-  sprintf(buff, "hdparm -t %s", partX);
+  sprintf(buff, "hdparm -t %s", partY);
   system(buff);
   system(buff);
   system(buff);
@@ -570,9 +570,8 @@ void grep_test(int call_lim) {
   // if we are want to test a clean copy, we copy over the contents to a freshly formatted partition
   if (copy) {
     sync();
-    fail = umount("/mnt/Z");
-    if (fail)
-      fprintf(stderr, "Failed to unmount: %s\r", strerror(errno));
+    sprintf(buff, "umount %s", partZ);
+    sysetm(buff);
     sync();
     if (!strcmp(file_sys, "btrfs"))
       sprintf(buff, "mkfs.btrfs -f %s &> /dev/null", partZ);
