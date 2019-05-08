@@ -23,6 +23,7 @@ static int branch_factor;   // hom hand subdirectories we allow in a given direc
 static int dir_count;
 static int mem_count;       // totla size of files wrtien in kB
 static int mem_lim;
+static int remove_div;	    // mem_lim/remove_div = amount removed for RandR
 static int file_count;
 static int dir_lim;
 static int file_size_max;
@@ -33,6 +34,7 @@ static double t1, t2;       // use these to time writes
 static short int FULL;
 static short int copy;
 static short int block_trace;
+static short int freefrag;
 static char * file_sys;
 static char * partX;
 static char * partY;
@@ -69,7 +71,7 @@ void make_random(dir * root, int label);
 void RandR(dir * root, int lim, int call_lim);
 
 // function that performs timed greps on both partitions
-void grep_test(int call_lim);
+void grep_test(int round);
 
 // get the layout score of both partitions 
 void layout_test(char * part, char * directory);
@@ -84,6 +86,7 @@ int main(int argc, char ** argv) {
   branch_factor = 10;
   dir_lim = 1000;
   mem_lim = 4750000;
+  remove_div = 20;
   file_size_min = 1;
   file_size_max = 150;
   rounds = 600;
@@ -110,6 +113,10 @@ int main(int argc, char ** argv) {
       file_sys = argv[++i];
     if (!strcmp(argv[i], "-bt"))
       block_trace = 1;
+    if (!strcmp(argv[i], "-rd"))
+      remove_div = atoi(argv[++i]);
+    if (!strcmp(argv[i], "-ff"))
+      freefrag = 1;
   }
 
 
@@ -200,10 +207,12 @@ int main(int argc, char ** argv) {
 
   while (!FULL) { make_random(root, file_count); }
 
+  system("du -sh /mnt/X");
+
   fprintf(stdout, "kB written:\t%d\t\tfiles created:\t%d\n", mem_count, file_count);
   fprintf(stdout, "Average Write Time (part X, part Y): \t%f MB/sec, %f MB/sec\n", mem_count/t1, mem_count/t2);
 
-  grep_test(rounds/50);
+  grep_test(0);
   if (block_trace) {
     layout_test(partX, "/mnt/X/AAA");
     layout_test(partY, "/mnt/Y/AAA");
@@ -215,8 +224,8 @@ int main(int argc, char ** argv) {
   for (i = 0; i < rounds; i++) {
     if ((i+1)%50 == 0) {
       fprintf(stdout, "\nRemove and Refill round %d\nCurrent Volume: %d kB,  File Count: %d\n", i+1, mem_count, file_count);
-      RandR(root, mem_lim/20, rounds);
-      grep_test(rounds/50);
+      RandR(root, mem_lim/remove_div, rounds);
+      grep_test(i+1);
       if (block_trace) {
         layout_test(partX, "/mnt/X/AAA");
         layout_test(partY, "/mnt/Y/AAA");
@@ -445,6 +454,8 @@ void RandR(dir * root, int lim, int call_lim) {
     i++;
   }
 
+//  system("du -sh /mnt/X");
+
   // we keep a cumulative time for the removal of the files, then average their total
   // size over the cululative time to remove them
   // *NOTE* times are multiplied by 1000 (^ done earlier ^) since we want MB/sec and [lim] is in kB 
@@ -504,18 +515,19 @@ void RandR(dir * root, int lim, int call_lim) {
     fclose(fpYw);
   }
 
+//  system("du -sh /mnt/X");
+
 }
 
 
 
-void grep_test(int call_lim) {
+void grep_test(int round) {
 
   int fail;
   struct timespec start, end;
   double time;
   char buff[100];
   static FILE * fpX, * fpY, * fpZ;
-  static int calls;
 
   if (!fpX) {
     sprintf(buff, "%s_X.out", file_sys);
@@ -530,8 +542,6 @@ void grep_test(int call_lim) {
     fpZ = fopen(buff, "w");
   }
   if (!(fpX && fpY && (fpZ || !copy))) { fprintf(stderr, "**** Failed to open output file **** \n"); }
-
-  calls++;
 
   // for both partitionis we perform a recursive grep over the whole partition then take size over time
 
@@ -551,6 +561,11 @@ void grep_test(int call_lim) {
   fprintf(fpX, "%f\n", (mem_count/1000)/time);
   fprintf(stdout, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
 
+  if (freefrag) {
+    sprintf(buff, "./freefrag %s %d", partX, round);
+    system(buff);
+  }
+
   fprintf(stdout, "performing grep on partition Y:");
 
   sprintf(buff, "umount %s", partY);
@@ -567,11 +582,16 @@ void grep_test(int call_lim) {
   fprintf(fpY, "%f\n", (mem_count/1000)/time);
   fprintf(stdout, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
 
+  if (freefrag) {
+    sprintf(buff, "./freefrag %s %d", partY, round);
+    system(buff);
+  }
+
   // if we are want to test a clean copy, we copy over the contents to a freshly formatted partition
   if (copy) {
     sync();
     sprintf(buff, "umount %s", partZ);
-    sysetm(buff);
+    system(buff);
     sync();
     if (!strcmp(file_sys, "btrfs"))
       sprintf(buff, "mkfs.btrfs -f %s &> /dev/null", partZ);
@@ -608,8 +628,13 @@ void grep_test(int call_lim) {
     fprintf(stdout, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
     
     fflush(fpZ);
-    if (calls == call_lim)
+    if (round == rounds)
        fclose(fpZ);
+
+    if (freefrag) {
+      sprintf(buff, "./freefrag %s %d", partZ, round);
+      system(buff);
+    }
   }
 
   printf("\n");
@@ -617,7 +642,7 @@ void grep_test(int call_lim) {
   fflush(fpX);
   fflush(fpY);
 
-  if (calls == call_lim) {
+  if (round == rounds) {
     fclose(fpX);
     fclose(fpY);
   }
