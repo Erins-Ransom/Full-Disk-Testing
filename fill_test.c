@@ -91,9 +91,9 @@ int main(int argc, char ** argv) {
   file_size_max = 150;
   rounds = 600;
   file_sys = "ext4";
-  partX = "/dev/sdc1";
-  partY = "/dev/sdc2";
-  partZ = "/dev/sdc3";
+  partX = "/dev/sdb1";
+  partY = "/dev/sdb2";
+  partZ = "/dev/sdb3";
 
   int fail = 0;
   int i;
@@ -135,7 +135,7 @@ int main(int argc, char ** argv) {
   else if (!strcmp(file_sys, "f2fs"))
     sprintf(buff, "mkfs.f2fs %s", partX);
   else
-    sprintf(buff, "mkfs.ext4 -q %s", partX);
+    sprintf(buff, "mkfs.ext4 -q -F %s", partX);
   system(buff);
 
   sprintf(buff, "umount %s", partY);
@@ -149,7 +149,7 @@ int main(int argc, char ** argv) {
   else if (!strcmp(file_sys, "f2fs"))
     sprintf(buff, "mkfs.f2fs %s", partY);
   else
-    sprintf(buff, "mkfs.ext4 -q %s", partY);
+    sprintf(buff, "mkfs.ext4 -q -F %s", partY);
   system(buff);
 
   sprintf(buff, "umount %s", partZ);
@@ -163,7 +163,7 @@ int main(int argc, char ** argv) {
   else if (!strcmp(file_sys, "f2fs"))
     sprintf(buff, "mkfs.f2fs %s", partZ);
   else
-    sprintf(buff, "mkfs.ext4 -q %s", partZ);
+    sprintf(buff, "mkfs.ext4 -q -F %s", partZ);
   system(buff);
 
 
@@ -562,7 +562,7 @@ void grep_test(int round) {
   fprintf(stdout, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
 
   if (freefrag) {
-    sprintf(buff, "./freefrag %s %d", partX, round);
+    sprintf(buff, "./freefrag.sh %s %d", partX, round);
     system(buff);
   }
 
@@ -583,7 +583,7 @@ void grep_test(int round) {
   fprintf(stdout, "\t %lf sec, ~%lf MB/sec\n", time, (mem_count/1000)/time);
 
   if (freefrag) {
-    sprintf(buff, "./freefrag %s %d", partY, round);
+    sprintf(buff, "./freefrag.sh %s %d", partY, round);
     system(buff);
   }
 
@@ -600,7 +600,7 @@ void grep_test(int round) {
     else if (!strcmp(file_sys, "f2fs"))
       sprintf(buff, "mkfs.f2fs %s", partZ);
     else
-      sprintf(buff, "mkfs.ext4 -q %s", partZ);
+      sprintf(buff, "mkfs.ext4 -F -q %s", partZ);
     fail = system(buff);
     sprintf(buff, "mount -t %s %s /mnt/Z", file_sys, partZ);
     fail = system(buff);
@@ -632,7 +632,7 @@ void grep_test(int round) {
        fclose(fpZ);
 
     if (freefrag) {
-      sprintf(buff, "./freefrag %s %d", partZ, round);
+      sprintf(buff, "./freefrag.sh %s %d", partZ, round);
       system(buff);
     }
   }
