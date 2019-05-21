@@ -133,7 +133,7 @@ int main(int argc, char ** argv) {
   else if (!strcmp(file_sys, "xfs"))
     sprintf(buff, "mkfs.xfs -q -f %s", partX);
   else if (!strcmp(file_sys, "f2fs"))
-    sprintf(buff, "mkfs.f2fs %s", partX);
+    sprintf(buff, "mkfs.f2fs -f %s", partX);
   else
     sprintf(buff, "mkfs.ext4 -q -F %s", partX);
   system(buff);
@@ -147,7 +147,7 @@ int main(int argc, char ** argv) {
   else if (!strcmp(file_sys, "xfs"))
     sprintf(buff, "mkfs.xfs -q -f %s", partY);
   else if (!strcmp(file_sys, "f2fs"))
-    sprintf(buff, "mkfs.f2fs %s", partY);
+    sprintf(buff, "mkfs.f2fs -f %s", partY);
   else
     sprintf(buff, "mkfs.ext4 -q -F %s", partY);
   system(buff);
@@ -161,7 +161,7 @@ int main(int argc, char ** argv) {
   else if (!strcmp(file_sys, "xfs"))
     sprintf(buff, "mkfs.xfs -q -f %s", partZ);
   else if (!strcmp(file_sys, "f2fs"))
-    sprintf(buff, "mkfs.f2fs %s", partZ);
+    sprintf(buff, "mkfs.f2fs -f %s", partZ);
   else
     sprintf(buff, "mkfs.ext4 -q -F %s", partZ);
   system(buff);
@@ -598,7 +598,7 @@ void grep_test(int round) {
     else if (!strcmp(file_sys, "xfs"))
       sprintf(buff, "mkfs.xfs -q -f %s", partZ);
     else if (!strcmp(file_sys, "f2fs"))
-      sprintf(buff, "mkfs.f2fs %s", partZ);
+      sprintf(buff, "mkfs.f2fs -f %s", partZ);
     else
       sprintf(buff, "mkfs.ext4 -F -q %s", partZ);
     fail = system(buff);
